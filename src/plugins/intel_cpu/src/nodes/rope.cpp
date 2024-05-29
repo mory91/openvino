@@ -373,6 +373,7 @@ void RoPE::initSupportedPrimitiveDescriptors() {
             rtPrecision = ov::element::f32;
         }
     } else {
+        can_inplace = true;
         if (rtPrecision == ov::element::f16) {
             m_executor = std::make_shared<RoPEExecutorRotateHalf<ov::float16>>(m_config);
         } else if (rtPrecision == ov::element::bf16) {
