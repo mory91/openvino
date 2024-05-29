@@ -223,14 +223,18 @@ void RoPE::initSupportedPrimitiveDescriptors() {
     auto CosSinPrecision = ov::element::f32;
 
     if (m_config.is_qwen) {
-        if (rtPrecision == ov::element::bf16) {
+        if (rtPrecision == ov::element::f16) {
+            m_executor = std::make_shared<RoPEExecutorQwen<ov::float16>>();
+        } else if (rtPrecision == ov::element::bf16) {
             m_executor = std::make_shared<RoPEExecutorQwen<ov::bfloat16>>();
         } else {
             m_executor = std::make_shared<RoPEExecutorQwen<float>>();
             rtPrecision = ov::element::f32;
         }
     } else if (m_config.is_chatglm) {
-        if (rtPrecision == ov::element::bf16) {
+        if (rtPrecision == ov::element::f16) {
+            m_executor = std::make_shared<RoPEExecutorChatGLM<ov::float16>>();
+        } else if (rtPrecision == ov::element::bf16) {
             m_executor = std::make_shared<RoPEExecutorChatGLM<ov::bfloat16>>();
         } else {
             m_executor = std::make_shared<RoPEExecutorChatGLM<float>>();
@@ -241,14 +245,18 @@ void RoPE::initSupportedPrimitiveDescriptors() {
         OPENVINO_ASSERT(m_config.slice_start == 0);
         OPENVINO_ASSERT(m_config.slice_stop == 0);
         OPENVINO_ASSERT(m_config.gather_position_arg_id == 0);
-        if (rtPrecision == ov::element::bf16) {
+        if (rtPrecision == ov::element::f16) {
+            m_executor = std::make_shared<RoPEExecutorInterleaved<ov::float16>>();
+        } else if (rtPrecision == ov::element::bf16) {
             m_executor = std::make_shared<RoPEExecutorInterleaved<ov::bfloat16>>();
         } else {
             m_executor = std::make_shared<RoPEExecutorInterleaved<float>>();
             rtPrecision = ov::element::f32;
         }
     } else {
-        if (rtPrecision == ov::element::bf16) {
+        if (rtPrecision == ov::element::f16) {
+            m_executor = std::make_shared<RoPEExecutorRotateHalf<ov::float16>>();
+        } else if (rtPrecision == ov::element::bf16) {
             m_executor = std::make_shared<RoPEExecutorRotateHalf<ov::bfloat16>>();
         } else {
             m_executor = std::make_shared<RoPEExecutorRotateHalf<float>>();
