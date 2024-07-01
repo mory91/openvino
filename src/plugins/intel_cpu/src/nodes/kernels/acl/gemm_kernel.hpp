@@ -4,6 +4,7 @@
 #pragma once
 #include <cstddef>
 #include <openvino/core/type/element_type.hpp>
+#include "nodes/executors/acl/acl_utils.hpp"
 
 #include "arm_compute/runtime/NEON/NEFunctions.h"
 #include "arm_compute/core/Types.h"
@@ -18,7 +19,6 @@ public:
                bool b_transposed = false,
                ov::element::Type inType = ov::element::f32);
 
-    // TODO Add clean up of tensors
     arm_compute::Status executeGemm(void* a,
                                     void* b,
                                     arm_compute::TensorInfo& dstInfo,

@@ -35,8 +35,6 @@
 #include <algorithm>
 #include <string>
 #include <vector>
-#include <chrono>
-#include <iostream>
 
 using namespace ov::Extensions::Cpu::XARCH;
 using namespace dnnl::impl;
@@ -196,7 +194,6 @@ struct MHAKernel {
         });
     }
 };
-
 
 template <typename T>
 struct MHAKernel<ScaledDotProductAttention::KT_ONEDNN, T> {
@@ -648,6 +645,7 @@ struct MHAKernel<ScaledDotProductAttention::KT_ACL, float> {
                                       0.0,
                                       &strides,
                                       reinterpret_cast<void*>(out));
+            qkTensor.allocator()->free();
         });
     }
 };
@@ -1083,7 +1081,9 @@ void ScaledDotProductAttention::createPrimitive() {
             executor = std::make_shared<AttentionExecutor<KT_ONEDNN, ov::bfloat16>>(context);
 #endif
         } else {
-#ifdef OV_CPU_WITH_MLAS
+#ifdef OV_CPU_WITH_ACL
+            executor = std::make_shared<AttentionExecutor<KT_ACL, float>>(context);
+#elif defined(OV_CPU_WITH_MLAS)
             executor = std::make_shared<AttentionExecutor<KT_MLAS, float>>(context);
 #elif defined(OPENVINO_ARCH_X86_64)
             if (with_cpu_x86_avx512_core()) {
@@ -1091,8 +1091,6 @@ void ScaledDotProductAttention::createPrimitive() {
             } else {
                 executor = std::make_shared<AttentionExecutor<KT_REF, float>>(context);
             }
-#elif defined(OV_CPU_WITH_ACL)
-            executor = std::make_shared<AttentionExecutor<KT_ACL, float>>(context);
 #else
             executor = std::make_shared<AttentionExecutor<KT_REF, float>>(context);
 #endif

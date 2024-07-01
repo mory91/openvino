@@ -6,20 +6,6 @@
 #include "gemm_kernel.hpp"
 #define THROW_ERROR(...) OPENVINO_THROW("ACL gemm executor Init Failure '", __VA_ARGS__)
 
-using Dim = std::size_t;
-using VectorDims = std::vector<Dim>;
-inline arm_compute::TensorShape shapeCast(const VectorDims& dims) {
-    arm_compute::TensorShape tensorShape;
-    for (std::size_t i = 0; i < dims.size(); ++i) {
-        tensorShape.set(dims.size() - i - 1, dims[i], true);
-    }
-    if (tensorShape.num_dimensions() == 0) {
-        tensorShape.set(0, 1, false);
-        tensorShape.set_num_dimensions(1);
-    }
-    return tensorShape;
-}
-
 namespace ov {
 namespace intel_cpu {
     GemmKernel::GemmKernel(size_t M,
