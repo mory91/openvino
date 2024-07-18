@@ -1124,9 +1124,13 @@ void Graph::PullOutputData(std::unordered_map<std::size_t, ov::SoPtr<ITensor>>& 
 }
 
 void Graph::InferStatic(SyncInferRequest* request) {
+    CPU_DEBUG_CAP_ENABLE(const PerfKey perfKey = perfGetKey(*this));
+
+    dnnl::stream stream(getEngine());
+
     for (const auto& node : m_executableGraphNodes) {
-        VERBOSE(node, getConfig().debugCaps.verbose);
-        PERF(node, getConfig().collectPerfCounters);
+        VERBOSE(node, getConfig().debugCaps.verbose, infer_count);
+        PERF(node, getConfig().collectPerfCounters, perfKey);
 
         if (request)
             request->throw_if_canceled();
@@ -1337,14 +1341,20 @@ public:
 
 template<typename UpdateStrategy>
 void Graph::InferDynamic(SyncInferRequest* request, UpdateStrategy&& update) {
+    std::unique_ptr<UpdateNodes> updateNodes{};
+    if (parallel_get_max_threads() > 1) {
+        updateNodes.reset(new UpdateNodes(m_executableGraphNodes));
+    }
+
+    CPU_DEBUG_CAP_ENABLE(const PerfKey perfKey = perfGetKey(*this));
     size_t inferCounter = 0;
     for (auto stopIndx : m_executableSyncNodesInds) {
         update(stopIndx);
 
         for (; inferCounter < stopIndx; ++inferCounter) {
             auto& node = m_executableGraphNodes[inferCounter];
-            VERBOSE(node, getConfig().debugCaps.verbose);
-            PERF(node, getConfig().collectPerfCounters);
+            VERBOSE(node, getConfig().debugCaps.verbose, infer_count);
+            PERF(node, getConfig().collectPerfCounters, perfKey);
 
             if (request)
                 request->throw_if_canceled();
@@ -1385,7 +1395,7 @@ inline void Graph::ExecuteNode(const NodePtr& node, const dnnl::stream& stream) 
             }
         }
     } else {
-        DUMP(node, getConfig().debugCaps, infer_count);
+        DUMP(node, getConfig().debugCaps, nestingLevel, infer_count);
         OV_ITT_SCOPED_TASK(itt::domains::intel_cpu, node->profiling.execute);
         DEBUG_LOG(*node);
         // TODO: 132954 workaround for latency
@@ -1458,7 +1468,7 @@ void Graph::Infer(SyncInferRequest* request) {
         OPENVINO_ASSERT(IsReady(), "Wrong state of the ov::intel_cpu::Graph. Topology is not ready: ", static_cast<int>(status));
     }
 
-    if (infer_count != -1) infer_count++;
+    CPU_DEBUG_CAP_ENABLE(infer_count++);
 }
 
 void Graph::SortTopologically() {

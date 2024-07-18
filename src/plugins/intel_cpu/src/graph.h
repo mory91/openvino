@@ -72,7 +72,7 @@ public:
         return _name;
     }
 
-    std::map<std::size_t, NodePtr>& GetInputNodesMap() {
+    const std::map<std::size_t, NodePtr>& GetInputNodesMap() const {
         return inputNodesMap;
     }
 
@@ -176,8 +176,6 @@ public:
 
     std::shared_ptr<ov::Model> dump() const;
 
-    void ResetInferCount() { infer_count = 0; }
-
     void SortTopologically();
 
     bool hasDynamicInput() const {
@@ -199,10 +197,6 @@ protected:
         m_executableSyncNodesInds.clear();
     }
     Status status { Status::NotReady };
-
-    // For dumping purposes. -1 - no counting, all other positive
-    // values mean increment it within each Infer() call
-    int infer_count = -1;
 
     bool reuse_io_tensors = true;
 
@@ -258,6 +252,24 @@ private:
     void EnforceInferencePrecision();
     void EnforceBF16();
     void insertReorder(EdgePtr& edge, bool isOptimized, std::unordered_set<std::string>& uniqueLayerNames);
+    void resolveInPlaceDirection(const NodePtr& node) const;
+
+#ifdef CPU_DEBUG_CAPS
+
+public:
+    void setNestingLevel(const uint8_t level) { nestingLevel = level; }
+    void ResetInferCount() { infer_count = 0; }
+
+private:
+    // Main CPU plugin execution graph has level 1,
+    // other ones are nested graphs used for particular nodes.
+    uint8_t nestingLevel = 2;
+    int infer_count = 0;
+
+    std::map<std::vector<VectorDims>, PerfKey> perfKeysMap;
+    friend PerfKey perfGetKey(Graph& graph);
+    friend void perfDump(const CompiledModel& execNet);
+#endif // CPU_DEBUG_CAPS
 };
 
 using GraphPtr = std::shared_ptr<Graph>;
