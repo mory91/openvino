@@ -311,8 +311,8 @@ void Reorder::createReorderPrimitive(const dnnl::memory::desc& srcDesc,
     DEBUG_LOG("CreateReorderPrimitive is called for node", getName(), " src desc: ", src_desc, " dst_desc: ", dst_desc);
     CPU_NODE_ASSERT(src_desc.get_ndims() == dst_desc.get_ndims(), "OneDNN doesn't support reorder with different ranks.");
     auto result = getReorderPrim(context->getParamsCache(), getEngine(), src_desc, dst_desc);
-    CPU_NODE_ASSERT(result, "could not create reorder primitive: unsupported reorder case.");
-    prim = result;
+    CPU_NODE_ASSERT(result.first, "could not create reorder primitive: unsupported reorder case.");
+    prim = result.first;
     VERBOSE_HELPER_NODE_PREPARE_PARAMS(result.second);
 
     selectedPD->setImplementationType(

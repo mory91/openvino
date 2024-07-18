@@ -18,6 +18,8 @@
 #include "shape_inference/custom/scaled_attn.hpp"
 #include "shape_inference/shape_inference_internal_dyn.hpp"
 #include "utils/plain_tensor.hpp"
+#include <chrono>
+
 
 #ifdef OV_CPU_WITH_MLAS
 #    include "mlas/sgemm.hpp"
@@ -600,16 +602,22 @@ struct MHAKernel<ScaledDotProductAttention::KT_ACL, float> {
 
             arm_compute::Strides qStrides({query.stride_bytes(3), query.stride_bytes(2)});
             arm_compute::Strides kStrides({present_key.stride_bytes(3), present_key.stride_bytes(2)});
+
+            auto t1 = std::chrono::high_resolution_clock::now();
             qk_gemm.executeGemm(reinterpret_cast<void *>(q_ptr),
                                 reinterpret_cast<void *>(k_ptr),
                                 qkInfo,
                                 qkTensor,
                                 qStrides,
                                 kStrides);
+            auto t2 = std::chrono::high_resolution_clock::now();
+            auto ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+            // std::cout << "first gemm " << ms_int.count() << " ms\n";
 
             auto qk = reinterpret_cast<float*>(qkTensor.buffer());
 
 
+            t1 = std::chrono::high_resolution_clock::now();
             for (size_t m = m_start; m < m_end; m++) {
                 // apply attention mask & sofmax
                 auto ncausal = auto_causal ? (kv_len - q_len + m + 1) : kv_len;
@@ -625,6 +633,9 @@ struct MHAKernel<ScaledDotProductAttention::KT_ACL, float> {
                              ov::element::f32,
                              ov::element::f32);
             }
+            t2 = std::chrono::high_resolution_clock::now();
+            ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+            // std::cout << "softmax " << ms_int.count() << " ms\n";
             arm_compute::TensorInfo outInfo;
             arm_compute::Tensor outTensor;
 
@@ -633,6 +644,7 @@ struct MHAKernel<ScaledDotProductAttention::KT_ACL, float> {
             GemmKernel out_gemm(m_cnt, kv_len, head_size);
 
             arm_compute::Strides vStrides({present_value.stride_bytes(3), present_value.stride_bytes(2)});
+            t1 = std::chrono::high_resolution_clock::now();
             out_gemm.executeGemm(qkTensor.buffer(),
                                  reinterpret_cast<void *>(v_ptr),
                                  outInfo,
@@ -644,6 +656,9 @@ struct MHAKernel<ScaledDotProductAttention::KT_ACL, float> {
                                  0.0,
                                  &strides,
                                  reinterpret_cast<void*>(out));
+            t2 = std::chrono::high_resolution_clock::now();
+            ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+            // std::cout << "second gemm " << ms_int.count() << " ms\n";
             qkTensor.allocator()->free();
         });
     }

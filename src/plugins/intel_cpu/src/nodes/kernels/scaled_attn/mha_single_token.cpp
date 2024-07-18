@@ -778,6 +778,7 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
     }
 #endif
 
+    auto t1 = std::chrono::high_resolution_clock::now();
     parallel_nt_static(nthr, [&](const size_t ithr, const size_t nthr) {
         size_t start{0}, end{0};
         splitter(B * h_group_num * kv_len, nthr, ithr, start, end);
@@ -824,7 +825,11 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
             }
         }
     });
+    auto t2 = std::chrono::high_resolution_clock::now();
+    auto ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    std::cout << "dot product " << ms_int.count() << " ms\n";
 
+    t1 = std::chrono::high_resolution_clock::now();
     parallel_for3d(B, H, q_len, [&](size_t b, size_t h, size_t pq) {
         auto cur_kv_len = kv_len;
         auto ncausal = auto_causal ? (cur_kv_len - q_len + pq + 1) : cur_kv_len;
@@ -847,9 +852,13 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
                             attn_mask_prec,
                             ov::element::f32);
     });
+    t2 = std::chrono::high_resolution_clock::now();
+    ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    std::cout << "softmax " << ms_int.count() << " ms\n";
 
     // attn_w * V
     // Fast Path if there are enough works for each thread
+    t1 = std::chrono::high_resolution_clock::now();
     if (B >= static_cast<size_t>(nthr)) {
         buf_attn_score.resize<float>({static_cast<size_t>(nthr), q_len, h_each_group_len, S});
         parallel_for2d(B, h_group_num, [&](size_t b, size_t h_group) {
@@ -881,7 +890,11 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
         });
         return;
     }
+    t2 = std::chrono::high_resolution_clock::now();
+    ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    std::cout << "fast path " << ms_int.count() << " ms\n";
 
+    t1 = std::chrono::high_resolution_clock::now();
     buf_attn_score.resize<float>({static_cast<size_t>(nthr), B, q_len, H, S});
     // buf_attn_w {B, H, q_len, kv_len}
     parallel_nt_static(nthr, [&](const size_t ithr, const size_t nthr) {
@@ -926,13 +939,20 @@ static void mha_single_token_kernel(const ov::intel_cpu::PlainTensor& query,
             }
         }
     });
+    t2 = std::chrono::high_resolution_clock::now();
+    ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    std::cout << "accumulate " << ms_int.count() << " ms\n";
 
+    t1 = std::chrono::high_resolution_clock::now();
     parallel_for3d(B, H, q_len, [&](size_t b, size_t h, size_t pq) {
         auto* temp = buf_attn_score.ptr<float>(0, b, pq, h);
         size_t temp_stride = buf_attn_score.stride(0);
         auto* dst = has_out_transpose ? output_emb.ptr<T>(b, pq, h * S) : output_emb.ptr<T>(b, h, pq);
         attn_reduce(dst, temp, nthr, S, temp_stride);
     });
+    t2 = std::chrono::high_resolution_clock::now();
+    ms_int = duration_cast<std::chrono::nanoseconds>(t2 - t1);
+    std::cout << "reduce " << ms_int.count() << " ms\n";
 }
 
 void mha_single_token(const ov::intel_cpu::PlainTensor& query,
