@@ -758,6 +758,7 @@ inline void attn_softmax_kernel(float* a,
             memset(static_cast<ov::bfloat16*>(a_dst) + len, 0, sizeof(ov::bfloat16) * (total_size - len));
     }
 }
+#if defined(OPENVINO_ARCH_ARM64)
 inline void attn_softmax_kernel(ov::float16* a,
                                 void* a_dst,
                                 float scale,
@@ -823,6 +824,7 @@ inline void attn_softmax_kernel(ov::float16* a,
     if (total_size > len)
         memset(static_cast<ov::float16*>(a_dst) + len, 0, sizeof(ov::float16) * (total_size - len));
 }
+#endif
 
 }  // namespace XARCH
 }  // namespace Cpu
